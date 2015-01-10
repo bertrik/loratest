@@ -58,7 +58,7 @@ void loop()
   {
     Serial.println("No reply, is rf95_server running?");
   }
-  delay(4000);
+  delay(2000);
 }
 
 
