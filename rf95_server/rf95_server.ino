@@ -13,11 +13,9 @@
 
 // Singleton instance of the radio driver
 RH_RF95 rf95;
-int led = 13;
 
 void setup() 
 {
-    pinMode(led, OUTPUT);     
   Serial.begin(9600);
   Serial.println("Hello World from Server!");
   if (!rf95.init())
@@ -38,7 +36,6 @@ void loop()
     uint8_t len = sizeof(buf);
     if (rf95.recv(buf, &len))
     {
-      digitalWrite(led, HIGH);
       RH_RF95::printBuffer("request: ", buf, len);
       Serial.print("got request: ");
       Serial.println((char*)buf);
@@ -50,7 +47,6 @@ void loop()
       rf95.send(data, sizeof(data));
       rf95.waitPacketSent();
       Serial.println("Sent a reply");
-       digitalWrite(led, LOW);
     }
     else
     {
