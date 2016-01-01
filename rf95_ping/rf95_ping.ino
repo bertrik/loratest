@@ -12,16 +12,19 @@
 #include <RH_RF95.h>
 
 typedef struct {
-	char msg[5];    // ping or pong
-	int count;      // counter
+	uint8_t type;
+	uint8_t count;  // counter
+	uint8_t initiator, replier;
 	int rssi;       // signal strength
-	int initiator, replier;
 } pingpong_t;
 
 // Singleton instance of the radio driver
 static RH_RF95 rf95;
 static pingpong_t ping;
 static pingpong_t pong;
+
+#define T_PING 1
+#define T_PONG 2
 
 void setup() {
 	Serial.begin(115200);
@@ -32,13 +35,18 @@ void setup() {
 	rf95.setFrequency(869.525);
 	rf95.setModemConfig(RH_RF95::Bw125Cr48Sf4096);
 
+	int r;
+	for(uint8_t i=A0; i<=A7; i++)
+		r ^= analogRead(i);
+	srandom(r);
+
 	//    rf95.setTxPower(20);
 
 	// init ping
-	strcpy(ping.msg, "ping");
+	ping.type = T_PING;
 	ping.count = 0;
 	ping.rssi = 0;
-	ping.initiator = 216; // FIXME CHANGE THIS TO SOMETHING UNIQUE
+	ping.initiator = 214; // FIXME CHANGE THIS TO SOMETHING UNIQUE
 	pong.replier = -1;
 
 	pong.initiator = -1;
@@ -74,12 +82,12 @@ void loop()
 			if (len == sizeof(pong)) {
 				memcpy(&pong, buf, sizeof(pong));
 
-				if (strcmp(pong.msg, "ping") == 0) {
+				if (pong.type == T_PING) {
 					// got ping
 					sprintf(line, "Recv PING(%d,%d,%d)", pong.count, pong.rssi, pong.initiator);
 					Serial.println(line);
 					// send pong
-					strcpy(pong.msg, "pong");
+					pong.type = T_PONG;
 					pong.rssi = rf95.lastRssi();
 					pong.replier = ping.initiator;
 					sprintf(line, "Send PONG(%d,%d,%d)", pong.count, pong.rssi, pong.replier);
@@ -87,13 +95,13 @@ void loop()
 					rf95.send((uint8_t *)&pong, sizeof(pong));
 					rf95.waitPacketSent();
 				}
-				else if (strcmp(pong.msg, "pong") == 0) {
+				else if (pong.type == T_PONG) {
 					// got pong, print stats
 					sprintf(line, "Got PONG(%d,%d,%d)", pong.count, pong.rssi, pong.replier);
 					Serial.println(line);
 				}
 				else {
-					sprintf(line, "???(%d,%d,%d,%d,%s)", pong.count, pong.rssi, pong.initiator, pong.replier, pong.msg);
+					sprintf(line, "???(%d,%d,%d,%d,%d)", pong.count, pong.rssi, pong.initiator, pong.replier, pong.type);
 					Serial.println(line);
 				}
 			} else {
