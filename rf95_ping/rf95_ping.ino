@@ -38,7 +38,7 @@ void setup() {
 	strcpy(ping.msg, "ping");
 	ping.count = 0;
 	ping.rssi = 0;
-	ping.initiator = 1; // FIXME CHANGE THIS TO SOMETHING UNIQUE
+	ping.initiator = 216; // FIXME CHANGE THIS TO SOMETHING UNIQUE
 	pong.replier = -1;
 
 	pong.initiator = -1;
@@ -97,13 +97,14 @@ void loop()
 					Serial.println(line);
 				}
 			} else {
-				Serial.print(F("Got spurious message: "));
-
+				Serial.println(F("Got spurious message: "));
 				for(uint8_t i=0; i<len; i++) {
 					Serial.print(buf[i], HEX);
 					Serial.print(' ');
 				}
-
+				Serial.println(F(""));
+				for(uint8_t i=0; i<len; i++)
+					Serial.print((char)buf[i]);
 				Serial.println(F(""));
 			}
 		}
