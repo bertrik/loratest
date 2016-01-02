@@ -7,7 +7,7 @@
 // It is designed to work with the other example rf95_client
 // Tested with Anarduino MiniWirelessLoRa
 
-
+#include <EEPROM.h>
 #include <SPI.h>
 #include <RH_RF95.h>
 
@@ -26,9 +26,27 @@ static pingpong_t pong;
 #define T_PING 1
 #define T_PONG 2
 
+void genId(const bool update) {
+	const bool validMarker = EEPROM.read(1) == 123;
+
+	if (validMarker && !update)
+		ping.initiator = EEPROM.read(0);
+	else {
+		Serial.println(F("Update/set ID"));
+		ping.initiator = rand();
+		if (!validMarker)
+			EEPROM.write(1, 123);
+		EEPROM.write(0, ping.initiator);
+		delay(5);
+		EEPROM.read(1);
+		EEPROM.read(0);
+	}
+}
+
 void setup() {
 	Serial.begin(115200);
-	Serial.println(F("Hello World from Server!"));
+	Serial.println(F("Init LoRa test"));
+
 	if (!rf95.init())
 		Serial.println(F("init failed"));
 	// Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
@@ -39,22 +57,26 @@ void setup() {
 	for(uint8_t i=A0; i<=A7; i++)
 		r ^= analogRead(i);
 	srandom(r);
+	srand(~r);
 
 	//    rf95.setTxPower(20);
 
 	// init ping
+	genId(false);
 	ping.type = T_PING;
 	ping.count = 0;
 	ping.rssi = 0;
-	ping.initiator = 214; // FIXME CHANGE THIS TO SOMETHING UNIQUE
 	pong.replier = -1;
+
+	Serial.print(F("Hello World from "));
+	Serial.println(ping.initiator);
 
 	pong.initiator = -1;
 	pong.replier = ping.initiator;
 }
 
 static char line[128];
-static uint8_t buf[64];
+static uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
 
 void loop()
 {
@@ -74,15 +96,18 @@ void loop()
 
 	unsigned long now = millis();
 	while (millis() - now < wait) {
-		uint8_t len = sizeof(buf);
+		uint8_t len = sizeof buf;
 
 		if (rf95.available()) {
+			memset(buf, 0x00, sizeof buf);
 			rf95.recv(buf, &len);
 
 			if (len == sizeof(pong)) {
 				memcpy(&pong, buf, sizeof(pong));
 
+				bool col = false;
 				if (pong.type == T_PING) {
+					col = pong.initiator == ping.initiator;
 					// got ping
 					sprintf(line, "Recv PING(%d,%d,%d)", pong.count, pong.rssi, pong.initiator);
 					Serial.println(line);
@@ -96,6 +121,7 @@ void loop()
 					rf95.waitPacketSent();
 				}
 				else if (pong.type == T_PONG) {
+					col = pong.replier == ping.initiator;
 					// got pong, print stats
 					sprintf(line, "Got PONG(%d,%d,%d)", pong.count, pong.rssi, pong.replier);
 					Serial.println(line);
@@ -103,6 +129,16 @@ void loop()
 				else {
 					sprintf(line, "???(%d,%d,%d,%d,%d)", pong.count, pong.rssi, pong.initiator, pong.replier, pong.type);
 					Serial.println(line);
+				}
+
+				if (col) {
+					sprintf(line, "ID COL: %d,%d", pong.initiator, pong.replier);
+					if (pong.initiator == ping.initiator) {
+						Serial.println(F("ID collision, force new"));
+						genId(true);
+						Serial.print(F("New ID:"));
+						Serial.println(ping.initiator);
+					}
 				}
 			} else {
 				Serial.println(F("Got spurious message: "));
